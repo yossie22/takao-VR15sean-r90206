@@ -149,7 +149,17 @@ var Marzipano = window.Marzipano;
 var data = window.APP_DATA;
 var panoElement = document.querySelector('#pano');
 
-var viewer = new Marzipano.Viewer(panoElement);
+var viewer = new Marzipano.Viewer(panoElement, {
+  controls: {
+    mouseViewMode: 'drag'
+  }
+});
+
+// ジャイロ制御を有効化
+var deviceOrientationControlMethod = viewer.controls().method('deviceOrientation');
+if (deviceOrientationControlMethod) {
+  deviceOrientationControlMethod.setEnabled(true);
+}
 
 var scenes = data.scenes;
 var scenesData = {};
@@ -608,31 +618,29 @@ showUI();
 
 })();
 </script>
+
 <script>
-if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-  document.body.addEventListener('click', function() {
+// iOS 13+ ジャイロ許可リクエスト
+if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+  // 初回タップでジャイロ許可を要求
+  var requestPermission = function() {
     DeviceOrientationEvent.requestPermission()
-      .then(response => {
+      .then(function(response) {
         if (response === 'granted') {
-          window.addEventListener('deviceorientation', () => {});
+          console.log('ジャイロ許可が得られました');
+        } else {
+          console.log('ジャイロ許可が拒否されました');
         }
       })
-      .catch(console.error);
-  }, {once: true});
+      .catch(function(error) {
+        console.error('ジャイロ許可エラー:', error);
+      });
+  };
+  
+  document.body.addEventListener('click', requestPermission, {once: true});
+  document.body.addEventListener('touchstart', requestPermission, {once: true});
 }
 </script>
-<script>
-if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-  document.body.addEventListener('click', function() {
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', () => {});
-        }
-      })
-      .catch(console.error);
-  }, {once: true});
-}
-</script>
+
 </body>
 </html>
