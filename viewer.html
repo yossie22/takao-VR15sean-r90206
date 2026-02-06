@@ -300,14 +300,22 @@ function switchScene(sceneId, newYaw, newPitch) {
   hideTextHotspot();
 
   var targetView = sceneObj.view;
-  if (typeof newYaw !== 'undefined' && typeof newPitch !== 'undefined') {
-    targetView.setParameters({ yaw: newYaw, pitch: newPitch });
-  }
+
+  /* ★★★ iPHONE 安定化：VIEW 設定を遅延させるため一旦保留 ★★★ */
+  var pendingYaw = newYaw;
+  var pendingPitch = newPitch;
 
   sceneObj.scene.switchTo({ transitionDuration: 500 });
   currentScene = sceneObj.scene;
   currentView = targetView;
   currentSceneObj = sceneObj;
+
+  /* ★★★ ここで 50ms 遅延してから setParameters ★★★ */
+  setTimeout(function() {
+    if (typeof pendingYaw !== 'undefined' && typeof pendingPitch !== 'undefined') {
+      targetView.setParameters({ yaw: pendingYaw, pitch: pendingPitch });
+    }
+  }, 50);
 
   document.getElementById('counter').textContent = sceneObj.data.position;
 
@@ -374,7 +382,7 @@ setInterval(function() {
     var newYaw = currentYaw > 0 ? currentYaw - Math.PI : currentYaw + Math.PI;
     switchScene(pairSceneId, newYaw, params.pitch);
   }
-}, 100);
+}, 300);
 
 /* ------------------------------
    音量スライダー
@@ -418,8 +426,8 @@ function playPositionSound(position) {
 ------------------------------ */
 function tryEnableAudio() {
   audioEnabled = true;
-  if (audioCtx.state === "suspended") {
-    audioCtx.resume();
+  if (audioCtx.state !== "running") {
+    audioCtx.resume().catch(()=>{});
   }
 }
 document.addEventListener('click', tryEnableAudio, { once: true });
