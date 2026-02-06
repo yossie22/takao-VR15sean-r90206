@@ -62,11 +62,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 #arrowLeft { top: 45%; right: 15%; transform: translateX(-60px); }
 #arrowRight { top: 45%; right: 15%; transform: translateX(60px); }
 
-/* 文字ホットスポット */
+/* 文字ホットスポット（背景なし・縁取り文字） */
 #textHotspot {
   position: absolute;
   bottom: 25px;
-  left: 375px;
+  left: 365px;
   max-width: 55%;
   z-index: 90;
   opacity: 0;
@@ -82,6 +82,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   line-height: 1.6;
   margin: 0;
   text-align: left;
+
+  /* 黒い縁取り（字幕風） */
   text-shadow:
     2px 2px 4px black,
     -2px 2px 4px black,
@@ -98,6 +100,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   }
   #textHotspot p {
     font-size: 16px;
+    text-shadow:
+      2px 2px 4px black,
+      -2px 2px 4px black,
+      2px -2px 4px black,
+      -2px -2px 4px black;
   }
 }
 </style>
@@ -120,12 +127,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 <img id="arrowLeft" class="arrow-nav" src="左-removebg-preview.png" alt="左へ">
 <img id="arrowRight" class="arrow-nav" src="右-removebg-preview.png" alt="右へ">
 
-<div id="gyroPermissionButton" style="position: absolute; top: 20px; right: 20px; 
-  background: rgba(76, 175, 80, 0.9); color: white; padding: 10px 20px; border-radius: 8px; 
-  font-size: 14px; cursor: pointer; z-index: 1000; display: none; transition: opacity 0.5s ease;">
-  ジャイロON
-</div>
-
 <div id="textHotspot">
   <p id="textContent"></p>
 </div>
@@ -139,11 +140,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 (function() {
 'use strict';
 
+/* ------------------------------
+   ここから JS 本体（前半）
+------------------------------ */
+
 var SWITCH_THRESHOLD = 91;
 var Marzipano = window.Marzipano;
 var data = window.APP_DATA;
 var panoElement = document.querySelector('#pano');
-
 var viewer = new Marzipano.Viewer(panoElement);
 
 var scenes = data.scenes;
@@ -152,7 +156,7 @@ var currentScene = null;
 var currentView = null;
 var currentSceneObj = null;
 
-/* iOS 対応：AudioContext */
+/* ▼▼▼ iOS 対応：AudioContext ▼▼▼ */
 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 var currentAudio = null;
 var currentVolume = 0.5;
@@ -163,15 +167,6 @@ var playedPositions = {};
 var visitedScenes = {};
 var textHotspotElement = document.getElementById('textHotspot');
 var textContentElement = document.getElementById('textContent');
-
-/* ジャイロ変数 */
-var gyroActive = false;
-var lastOrientation = { alpha: null, beta: null, gamma: null };
-var idleTimer = null;
-var touchDeactivateTimer = null;
-var IDLE_TIME = 3000;
-var TOUCH_DEACTIVATE_TIME = 300;
-var gyroInitialized = false;
 
 /* URL パラメータ */
 var urlParams = new URLSearchParams(window.location.search);
@@ -192,6 +187,7 @@ scenes.forEach(function(scene) {
   }
 });
 
+/* 行きのシーン情報 */
 ikiScenes.forEach(function(scene, index) {
   var position = index + 1;
   var pairIndex = ikiScenes.length - index - 1;
@@ -204,6 +200,7 @@ ikiScenes.forEach(function(scene, index) {
   };
 });
 
+/* 帰りのシーン情報 */
 kaeriScenes.forEach(function(scene, index) {
   var position = index + 1;
   var pairIndex = kaeriScenes.length - index - 1;
@@ -227,11 +224,9 @@ scenes.forEach(function(sceneData) {
   );
 
   var geometry = new Marzipano.CubeGeometry(sceneData.levels);
-  
   var limiter = Marzipano.RectilinearView.limit.traditional(
-    2 * sceneData.faceSize, 75*Math.PI/180, 120*Math.PI/180
+    sceneData.faceSize, 75*Math.PI/180, 120*Math.PI/180
   );
-  
   var view = new Marzipano.RectilinearView(sceneData.initialViewParameters, limiter);
 
   var scene = viewer.createScene({
@@ -256,29 +251,9 @@ scenes.forEach(function(sceneData) {
   };
 });
 
-function switchScene(sceneId, newYaw, newPitch) {
-  var sceneObj = scenesData[sceneId];
-  if (!sceneObj) return;
-
-  var targetView = sceneObj.view;
-  if (typeof newYaw !== 'undefined' && typeof newPitch !== 'undefined') {
-    targetView.setParameters({ yaw: newYaw, pitch: newPitch });
-  }
-
-  sceneObj.scene.switchTo({ transitionDuration: 500 });
-  currentScene = sceneObj.scene;
-  currentView = targetView;
-  currentSceneObj = sceneObj;
-
-  document.getElementById('counter').textContent = sceneObj.data.position;
-
-  if (sceneObj.data.direction === 'iki') {
-    playPositionSound(sceneObj.data.position);
-  }
-
-  showTextHotspot(sceneId);
-}
-
+/* ------------------------------
+   文字ホットスポット表示
+------------------------------ */
 function showTextHotspot(sceneId) {
   var sceneObj = scenesData[sceneId];
   if (!sceneObj) return;
@@ -302,15 +277,12 @@ function showTextHotspot(sceneId) {
   var hotspot = hotspots[0];
   if (hotspot.text) {
     textContentElement.textContent = hotspot.text;
-    textHotspotElement.classList.add('visible');
-
-    visitedScenes[sceneId] = true;
 
     setTimeout(function() {
-      hideTextHotspot();
-    }, 5000);
-  } else {
-    hideTextHotspot();
+      textHotspotElement.classList.add('visible');
+    }, 500);
+
+    visitedScenes[sceneId] = true;
   }
 }
 
@@ -318,6 +290,37 @@ function hideTextHotspot() {
   textHotspotElement.classList.remove('visible');
 }
 
+/* ------------------------------
+   シーン切り替え
+------------------------------ */
+function switchScene(sceneId, newYaw, newPitch) {
+  var sceneObj = scenesData[sceneId];
+  if (!sceneObj) return;
+
+  hideTextHotspot();
+
+  var targetView = sceneObj.view;
+  if (typeof newYaw !== 'undefined' && typeof newPitch !== 'undefined') {
+    targetView.setParameters({ yaw: newYaw, pitch: newPitch });
+  }
+
+  sceneObj.scene.switchTo({ transitionDuration: 500 });
+  currentScene = sceneObj.scene;
+  currentView = targetView;
+  currentSceneObj = sceneObj;
+
+  document.getElementById('counter').textContent = sceneObj.data.position;
+
+  if (sceneObj.data.direction === 'iki') {
+    playPositionSound(sceneObj.data.position);
+  }
+
+  showTextHotspot(sceneId);
+}
+
+/* ------------------------------
+   角度計算
+------------------------------ */
 function normalizeAngle(angle) {
   while (angle > Math.PI) angle -= 2 * Math.PI;
   while (angle < -Math.PI) angle += 2 * Math.PI;
@@ -326,6 +329,9 @@ function normalizeAngle(angle) {
 function degToRad(deg) { return deg * Math.PI / 180; }
 function radToDeg(rad) { return rad * 180 / Math.PI; }
 
+/* ------------------------------
+   矢印表示制御
+------------------------------ */
 function updateArrowVisibility() {
   if (!currentView || !currentSceneObj) return;
 
@@ -350,6 +356,9 @@ function updateArrowVisibility() {
   }
 }
 
+/* ------------------------------
+   自動シーン切替（往復）
+------------------------------ */
 setInterval(function() {
   if (!currentView || !currentSceneObj) return;
 
@@ -367,12 +376,18 @@ setInterval(function() {
   }
 }, 100);
 
+/* ------------------------------
+   音量スライダー
+------------------------------ */
 var volumeSlider = document.getElementById('volumeSlider');
 volumeSlider.addEventListener('input', function() {
   currentVolume = this.value;
   if (currentAudio) currentAudio.volume = currentVolume;
 });
 
+/* ------------------------------
+   効果音再生
+------------------------------ */
 function playPositionSound(position) {
   if (!audioEnabled) return;
   if (playedPositions[position]) return;
@@ -398,6 +413,9 @@ function playPositionSound(position) {
   playedPositions[position] = true;
 }
 
+/* ------------------------------
+   初回タップで音声許可
+------------------------------ */
 function tryEnableAudio() {
   audioEnabled = true;
   if (audioCtx.state === "suspended") {
@@ -407,6 +425,9 @@ function tryEnableAudio() {
 document.addEventListener('click', tryEnableAudio, { once: true });
 document.addEventListener('touchstart', tryEnableAudio, { once: true });
 
+/* ------------------------------
+   地図へ戻る
+------------------------------ */
 window.goToMap = function() {
   if (currentAudio) currentAudio.pause();
   visitedScenes = {};
@@ -414,6 +435,12 @@ window.goToMap = function() {
   window.location.href = "index.html";
 };
 
+/* ------------------------------
+   移動処理
+------------------------------ */
+/* ------------------------------
+   移動処理（確定修正版：180度逆転対策）
+------------------------------ */
 function executeMoveByDelta(delta) {
   if (!currentView || !currentSceneObj) return;
 
@@ -435,8 +462,10 @@ window.moveForward = function() {
   var delta;
 
   if (currentSceneObj.data.direction === 'iki') {
+    // 行きシーン：正面なら+1（進む）、後ろなら-1（戻る）
     delta = isLookingFront ? 1 : -1;
   } else {
+    // 帰りシーン：正面なら-1（進む）、後ろなら+1（戻る）
     delta = isLookingFront ? -1 : 1;
   }
   executeMoveByDelta(delta);
@@ -448,8 +477,10 @@ window.moveBackward = function() {
   var delta;
 
   if (currentSceneObj.data.direction === 'iki') {
+    // 行きシーン：正面なら-1（下がる）、後ろなら+1（引き返す）
     delta = isLookingFront ? -1 : 1;
   } else {
+    // 帰りシーン：正面なら+1（下がる）、後ろなら-1（引き返す）
     delta = isLookingFront ? 1 : -1;
   }
   executeMoveByDelta(delta);
@@ -457,6 +488,7 @@ window.moveBackward = function() {
 
 window.moveLeft = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
+  // 横移動は「景色が流れる方向」に合わせるため、絶対的なdeltaで制御
   if (yaw < 0) {
     executeMoveByDelta(-1);
   } else {
@@ -473,125 +505,9 @@ window.moveRight = function() {
   }
 };
 
-/* ジャイロ機能 */
-var permissionButton = document.getElementById('gyroPermissionButton');
-
-function showPermissionButton() {
-  if (typeof DeviceOrientationEvent !== 'undefined' && 
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
-    permissionButton.style.display = 'block';
-    
-    // 3秒後に自動で薄く消える（でもクリックは可能）
-    setTimeout(function() {
-      permissionButton.style.opacity = '0.3';
-    }, 3000);
-  } else {
-    initGyro();
-  }
-}
-
-permissionButton.addEventListener('click', function() {
-  DeviceOrientationEvent.requestPermission()
-    .then(function(response) {
-      if (response === 'granted') {
-        permissionButton.style.display = 'none';
-        window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-        gyroInitialized = true;
-        startIdleTimer();
-      } else {
-        alert('ジャイロの許可が必要です');
-      }
-    })
-    .catch(function(error) {
-      alert('エラー: ' + error);
-    });
-});
-
-function handleDeviceOrientation(event) {
-  if (!gyroActive || !currentView) return;
-  
-  var alpha = event.alpha;
-  var beta = event.beta;
-  var gamma = event.gamma;
-  
-  if (alpha === null || beta === null || gamma === null) return;
-  
-  if (lastOrientation.alpha === null) {
-    lastOrientation = { alpha: alpha, beta: beta, gamma: gamma };
-    return;
-  }
-  
-  var deltaAlpha = alpha - lastOrientation.alpha;
-  var deltaBeta = beta - lastOrientation.beta;
-  var deltaGamma = gamma - lastOrientation.gamma;
-  
-  if (deltaAlpha > 180) deltaAlpha -= 360;
-  if (deltaAlpha < -180) deltaAlpha += 360;
-  
-  var params = currentView.parameters();
-  var sensitivity = 1.5;
-  var orientation = window.orientation !== undefined ? window.orientation : 0;
-  
-  var newYaw, newPitch;
-  
-  if (Math.abs(orientation) < 45 || Math.abs(orientation - 180) < 45) {
-    newYaw = params.yaw - (deltaGamma * Math.PI / 180 * sensitivity);
-    newPitch = params.pitch + (deltaBeta * Math.PI / 180 * sensitivity);
-  } else if (Math.abs(orientation - 90) < 45) {
-    newYaw = params.yaw + (deltaBeta * Math.PI / 180 * sensitivity);
-    newPitch = params.pitch + (deltaGamma * Math.PI / 180 * sensitivity);
-  } else {
-    newYaw = params.yaw - (deltaBeta * Math.PI / 180 * sensitivity);
-    newPitch = params.pitch - (deltaGamma * Math.PI / 180 * sensitivity);
-  }
-  
-  var maxPitch = 75 * Math.PI / 180;
-  newPitch = Math.max(-maxPitch, Math.min(maxPitch, newPitch));
-  
-  currentView.setParameters({ yaw: newYaw, pitch: newPitch });
-  lastOrientation = { alpha: alpha, beta: beta, gamma: gamma };
-}
-
-function startIdleTimer() {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(function() {
-    gyroActive = true;
-    lastOrientation = { alpha: null, beta: null, gamma: null };
-  }, IDLE_TIME);
-}
-
-function stopIdleTimer() {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
-  }
-  gyroActive = false;
-}
-
-function deactivateGyroTemporarily() {
-  stopIdleTimer();
-  if (touchDeactivateTimer) clearTimeout(touchDeactivateTimer);
-  touchDeactivateTimer = setTimeout(function() {
-    startIdleTimer();
-  }, TOUCH_DEACTIVATE_TIME);
-}
-
-function initGyro() {
-  if (gyroInitialized) return;
-  gyroInitialized = true;
-  window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-  startIdleTimer();
-}
-
-panoElement.addEventListener('touchstart', function() {
-  deactivateGyroTemporarily();
-});
-
-panoElement.addEventListener('touchmove', function() {
-  deactivateGyroTemporarily();
-});
-
-/* UI 自動フェード */
+/* ------------------------------
+   UI 自動フェード
+------------------------------ */
 var uiElements = [
   document.getElementById('mapButton'),
   document.getElementById('counter'),
@@ -617,7 +533,9 @@ function showUI() {
 document.addEventListener('mousemove', showUI);
 document.addEventListener('touchstart', showUI);
 
-/* 長押し自動移動 */
+/* ------------------------------
+   長押し自動移動
+------------------------------ */
 var autoMoveInterval = null;
 var autoMoveDelay = 800;
 
@@ -663,7 +581,9 @@ arrowRight.addEventListener('mouseleave', stopAutoMove);
 arrowRight.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveRight); });
 arrowRight.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
 
-/* 初期シーン */
+/* ------------------------------
+   初期シーン
+------------------------------ */
 var initialSceneId = null;
 
 for (var id in scenesData) {
@@ -678,7 +598,6 @@ if (initialSceneId) switchScene(initialSceneId);
 else switchScene('0-1');
 
 showUI();
-showPermissionButton();
 
 })();
 </script>
