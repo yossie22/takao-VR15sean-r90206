@@ -489,7 +489,7 @@ function showPermissionButton() {
       typeof DeviceOrientationEvent.requestPermission === 'function') {
     permissionButton.style.display = 'block';
     
-    // 3秒後に自動で消える
+    // 5秒後に自動で消える
     setTimeout(function() {
       permissionButton.classList.add('fade-out');
       setTimeout(function() {
