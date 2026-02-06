@@ -8,7 +8,7 @@
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
 #pano { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
 /* UI ボタン類 */
@@ -89,23 +89,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000
     -2px -2px 4px black;
 }
 
-/* ジャイロ許可ボタン（修正済み：小さく半透明） */
-#gyroPermissionButton {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 5px 10px;
-  font-size: 12px;
-  background: rgba(0, 128, 0, 0.4);
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  z-index: 1000;
-  display: none;
-  transition: opacity 1s ease;
-}
-
 /* スマホ調整 */
 @media (max-width: 768px) {
   #textHotspot {
@@ -137,7 +120,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000
 <img id="arrowLeft" class="arrow-nav" src="左-removebg-preview.png" alt="左へ">
 <img id="arrowRight" class="arrow-nav" src="右-removebg-preview.png" alt="右へ">
 
-<div id="gyroPermissionButton">
+<div id="gyroPermissionButton" style="position: absolute; top: 20px; right: 20px; 
+  background: rgba(76, 175, 80, 0.9); color: white; padding: 10px 20px; border-radius: 8px; 
+  font-size: 14px; cursor: pointer; z-index: 1000; display: none; transition: opacity 0.5s ease;">
   ジャイロON
 </div>
 
@@ -154,15 +139,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background-color: #000
 (function() {
 'use strict';
 
-// --- 設定 ---
-var SWITCH_THRESHOLD = 91; // 振り向き角度の閾値
-var IDLE_TIME = 0; // 操作停止後のジャイロ復帰待ち時間（0=即時）
-
+var SWITCH_THRESHOLD = 91;
 var Marzipano = window.Marzipano;
 var data = window.APP_DATA;
 var panoElement = document.querySelector('#pano');
 
-// --- ビューワー初期化 ---
 var viewer = new Marzipano.Viewer(panoElement);
 
 var scenes = data.scenes;
@@ -171,32 +152,39 @@ var currentScene = null;
 var currentView = null;
 var currentSceneObj = null;
 
-// --- 音声関連 ---
+/* iOS 対応：AudioContext */
 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 var currentAudio = null;
 var currentVolume = 0.5;
 var audioEnabled = false;
 var playedPositions = {};
 
-// --- 文字ホットスポット ---
+/* 文字ホットスポット */
 var visitedScenes = {};
 var textHotspotElement = document.getElementById('textHotspot');
 var textContentElement = document.getElementById('textContent');
 
-// --- ジャイロ変数 ---
+/* ジャイロ変数 */
 var gyroActive = false;
 var lastOrientation = { alpha: null, beta: null, gamma: null };
 var idleTimer = null;
+var touchDeactivateTimer = null;
+var IDLE_TIME = 3000;
+var TOUCH_DEACTIVATE_TIME = 300;
 var gyroInitialized = false;
 
-// --- シーン情報整理（行き・帰り） ---
+/* URL パラメータ */
+var urlParams = new URLSearchParams(window.location.search);
+var startSceneParam = urlParams.get('scene');
+var startSceneNum = startSceneParam ? parseInt(startSceneParam) : 1;
+
+/* 行き・帰り分類 */
 var sceneInfo = {};
 var ikiScenes = [];
 var kaeriScenes = [];
 
 scenes.forEach(function(scene) {
   var name = scene.name;
-  // 'b'が含まれるかどうかで判定
   if (name.indexOf('b') > -1 || name.indexOf('ｂ') > -1 || name.indexOf('B') > -1) {
     kaeriScenes.push(scene);
   } else {
@@ -204,24 +192,33 @@ scenes.forEach(function(scene) {
   }
 });
 
-// 行き・帰りのペアリング処理
 ikiScenes.forEach(function(scene, index) {
   var position = index + 1;
   var pairIndex = ikiScenes.length - index - 1;
   var pairId = kaeriScenes[pairIndex] ? kaeriScenes[pairIndex].id : null;
-  sceneInfo[scene.id] = { position: position, direction: 'iki', pair: pairId };
+
+  sceneInfo[scene.id] = {
+    position: position,
+    direction: 'iki',
+    pair: pairId
+  };
 });
 
 kaeriScenes.forEach(function(scene, index) {
   var position = index + 1;
   var pairIndex = kaeriScenes.length - index - 1;
   var pairId = ikiScenes[pairIndex] ? ikiScenes[pairIndex].id : null;
-  sceneInfo[scene.id] = { position: position, direction: 'kaeri', pair: pairId };
+
+  sceneInfo[scene.id] = {
+    position: position,
+    direction: 'kaeri',
+    pair: pairId
+  };
 });
 
 var maxPosition = Math.max(ikiScenes.length, kaeriScenes.length);
 
-// --- シーン作成ループ ---
+/* シーン生成 */
 scenes.forEach(function(sceneData) {
   var urlPrefix = "tiles";
   var source = Marzipano.ImageUrlSource.fromString(
@@ -259,13 +256,9 @@ scenes.forEach(function(sceneData) {
   };
 });
 
-// --- シーン切り替え関数 ---
 function switchScene(sceneId, newYaw, newPitch) {
   var sceneObj = scenesData[sceneId];
-  if (!sceneObj) {
-    console.error("Scene not found:", sceneId);
-    return;
-  }
+  if (!sceneObj) return;
 
   var targetView = sceneObj.view;
   if (typeof newYaw !== 'undefined' && typeof newPitch !== 'undefined') {
@@ -277,11 +270,8 @@ function switchScene(sceneId, newYaw, newPitch) {
   currentView = targetView;
   currentSceneObj = sceneObj;
 
-  // カウンター更新
-  var counterEl = document.getElementById('counter');
-  if (counterEl) counterEl.textContent = sceneObj.data.position;
+  document.getElementById('counter').textContent = sceneObj.data.position;
 
-  // 音声再生（行きのみ）
   if (sceneObj.data.direction === 'iki') {
     playPositionSound(sceneObj.data.position);
   }
@@ -289,12 +279,16 @@ function switchScene(sceneId, newYaw, newPitch) {
   showTextHotspot(sceneId);
 }
 
-// --- テキストホットスポット表示 ---
 function showTextHotspot(sceneId) {
   var sceneObj = scenesData[sceneId];
   if (!sceneObj) return;
 
-  if (sceneObj.data.direction !== 'iki' || visitedScenes[sceneId]) {
+  if (sceneObj.data.direction !== 'iki') {
+    hideTextHotspot();
+    return;
+  }
+
+  if (visitedScenes[sceneId]) {
     hideTextHotspot();
     return;
   }
@@ -309,9 +303,12 @@ function showTextHotspot(sceneId) {
   if (hotspot.text) {
     textContentElement.textContent = hotspot.text;
     textHotspotElement.classList.add('visible');
+
     visitedScenes[sceneId] = true;
 
-    setTimeout(hideTextHotspot, 5000);
+    setTimeout(function() {
+      hideTextHotspot();
+    }, 5000);
   } else {
     hideTextHotspot();
   }
@@ -321,7 +318,6 @@ function hideTextHotspot() {
   textHotspotElement.classList.remove('visible');
 }
 
-// --- 角度計算ユーティリティ ---
 function normalizeAngle(angle) {
   while (angle > Math.PI) angle -= 2 * Math.PI;
   while (angle < -Math.PI) angle += 2 * Math.PI;
@@ -330,7 +326,6 @@ function normalizeAngle(angle) {
 function degToRad(deg) { return deg * Math.PI / 180; }
 function radToDeg(rad) { return rad * 180 / Math.PI; }
 
-// --- 矢印の表示/非表示 ---
 function updateArrowVisibility() {
   if (!currentView || !currentSceneObj) return;
 
@@ -341,8 +336,6 @@ function updateArrowVisibility() {
   var arrowDown = document.getElementById('arrowDown');
   var arrowLeft = document.getElementById('arrowLeft');
   var arrowRight = document.getElementById('arrowRight');
-  
-  if (!arrowUp) return; // 要素がない場合はスキップ
 
   if (currentYawDeg <= 45 || currentYawDeg > 135) {
     arrowUp.style.display = 'block';
@@ -357,7 +350,6 @@ function updateArrowVisibility() {
   }
 }
 
-// --- 振り向き検知ループ ---
 setInterval(function() {
   if (!currentView || !currentSceneObj) return;
 
@@ -366,24 +358,20 @@ setInterval(function() {
 
   updateArrowVisibility();
 
-  // 180度ターン処理
   if (currentYaw > degToRad(SWITCH_THRESHOLD) || currentYaw < -degToRad(SWITCH_THRESHOLD)) {
     var pairSceneId = currentSceneObj.data.pair;
-    if (pairSceneId && scenesData[pairSceneId]) {
-      var newYaw = currentYaw > 0 ? currentYaw - Math.PI : currentYaw + Math.PI;
-      switchScene(pairSceneId, newYaw, params.pitch);
-    }
+    if (!pairSceneId) return;
+
+    var newYaw = currentYaw > 0 ? currentYaw - Math.PI : currentYaw + Math.PI;
+    switchScene(pairSceneId, newYaw, params.pitch);
   }
 }, 100);
 
-// --- 音声コントロール ---
 var volumeSlider = document.getElementById('volumeSlider');
-if (volumeSlider) {
-  volumeSlider.addEventListener('input', function() {
-    currentVolume = this.value;
-    if (currentAudio) currentAudio.volume = currentVolume;
-  });
-}
+volumeSlider.addEventListener('input', function() {
+  currentVolume = this.value;
+  if (currentAudio) currentAudio.volume = currentVolume;
+});
 
 function playPositionSound(position) {
   if (!audioEnabled) return;
@@ -398,7 +386,7 @@ function playPositionSound(position) {
 
   var audio = new Audio(file);
   audio.volume = currentVolume;
-  
+
   var track = audioCtx.createMediaElementSource(audio);
   track.connect(audioCtx.destination);
 
@@ -412,7 +400,9 @@ function playPositionSound(position) {
 
 function tryEnableAudio() {
   audioEnabled = true;
-  if (audioCtx.state === "suspended") audioCtx.resume();
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
 }
 document.addEventListener('click', tryEnableAudio, { once: true });
 document.addEventListener('touchstart', tryEnableAudio, { once: true });
@@ -424,14 +414,12 @@ window.goToMap = function() {
   window.location.href = "index.html";
 };
 
-// --- 移動ロジック ---
 function executeMoveByDelta(delta) {
   if (!currentView || !currentSceneObj) return;
 
   var nextPos = currentSceneObj.data.position + delta;
   if (nextPos < 1 || nextPos > maxPosition) return;
 
-  // 次のポジションのシーンIDを探す
   for (var id in scenesData) {
     if (scenesData[id].data.position === nextPos &&
         scenesData[id].data.direction === currentSceneObj.data.direction) {
@@ -444,66 +432,80 @@ function executeMoveByDelta(delta) {
 window.moveForward = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
   var isLookingFront = Math.abs(radToDeg(yaw)) <= 90;
-  var delta = (currentSceneObj.data.direction === 'iki') ? (isLookingFront ? 1 : -1) : (isLookingFront ? -1 : 1);
+  var delta;
+
+  if (currentSceneObj.data.direction === 'iki') {
+    delta = isLookingFront ? 1 : -1;
+  } else {
+    delta = isLookingFront ? -1 : 1;
+  }
   executeMoveByDelta(delta);
 };
 
 window.moveBackward = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
   var isLookingFront = Math.abs(radToDeg(yaw)) <= 90;
-  var delta = (currentSceneObj.data.direction === 'iki') ? (isLookingFront ? -1 : 1) : (isLookingFront ? 1 : -1);
+  var delta;
+
+  if (currentSceneObj.data.direction === 'iki') {
+    delta = isLookingFront ? -1 : 1;
+  } else {
+    delta = isLookingFront ? 1 : -1;
+  }
   executeMoveByDelta(delta);
 };
 
 window.moveLeft = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
-  executeMoveByDelta(yaw < 0 ? -1 : 1);
+  if (yaw < 0) {
+    executeMoveByDelta(-1);
+  } else {
+    executeMoveByDelta(1);
+  }
 };
 
 window.moveRight = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
-  executeMoveByDelta(yaw > 0 ? -1 : 1);
+  if (yaw > 0) {
+    executeMoveByDelta(-1);
+  } else {
+    executeMoveByDelta(1);
+  }
 };
 
-// --- ジャイロ機能（修正済み：5秒で消滅、即時反応） ---
+/* ジャイロ機能 */
 var permissionButton = document.getElementById('gyroPermissionButton');
 
 function showPermissionButton() {
-  // iOS 13+ の場合のみボタンを表示
   if (typeof DeviceOrientationEvent !== 'undefined' && 
       typeof DeviceOrientationEvent.requestPermission === 'function') {
-    
     permissionButton.style.display = 'block';
     
-    // 5秒後に消す
+    // 3秒後に自動で薄く消える（でもクリックは可能）
     setTimeout(function() {
-      permissionButton.style.opacity = '0';
-      setTimeout(function() {
-        permissionButton.style.display = 'none';
-      }, 1000);
-    }, 5000); 
+      permissionButton.style.opacity = '0.3';
+    }, 3000);
   } else {
-    // Androidなどは即時開始
     initGyro();
   }
 }
 
-if (permissionButton) {
-  permissionButton.addEventListener('click', function() {
-    DeviceOrientationEvent.requestPermission()
-      .then(function(response) {
-        if (response === 'granted') {
-          permissionButton.style.display = 'none';
-          initGyro();
-        } else {
-          alert('ジャイロの許可が必要です');
-        }
-      })
-      .catch(function(error) {
-        alert('エラー: ' + error);
-      });
-  });
-}
+permissionButton.addEventListener('click', function() {
+  DeviceOrientationEvent.requestPermission()
+    .then(function(response) {
+      if (response === 'granted') {
+        permissionButton.style.display = 'none';
+        window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+        gyroInitialized = true;
+        startIdleTimer();
+      } else {
+        alert('ジャイロの許可が必要です');
+      }
+    })
+    .catch(function(error) {
+      alert('エラー: ' + error);
+    });
+});
 
 function handleDeviceOrientation(event) {
   if (!gyroActive || !currentView) return;
@@ -519,28 +521,28 @@ function handleDeviceOrientation(event) {
     return;
   }
   
+  var deltaAlpha = alpha - lastOrientation.alpha;
   var deltaBeta = beta - lastOrientation.beta;
   var deltaGamma = gamma - lastOrientation.gamma;
   
+  if (deltaAlpha > 180) deltaAlpha -= 360;
+  if (deltaAlpha < -180) deltaAlpha += 360;
+  
   var params = currentView.parameters();
-  var sensitivity = 1.5; // 感度
-  var orientation = window.orientation || 0;
+  var sensitivity = 1.5;
+  var orientation = window.orientation !== undefined ? window.orientation : 0;
   
-  var newYaw = params.yaw, newPitch = params.pitch;
+  var newYaw, newPitch;
   
-  // 画面の向きに応じて軸を入れ替える
   if (Math.abs(orientation) < 45 || Math.abs(orientation - 180) < 45) {
-    // 縦持ち
-    newYaw -= (deltaGamma * Math.PI / 180 * sensitivity);
-    newPitch += (deltaBeta * Math.PI / 180 * sensitivity);
+    newYaw = params.yaw - (deltaGamma * Math.PI / 180 * sensitivity);
+    newPitch = params.pitch + (deltaBeta * Math.PI / 180 * sensitivity);
   } else if (Math.abs(orientation - 90) < 45) {
-    // 横持ち（左）
-    newYaw += (deltaBeta * Math.PI / 180 * sensitivity);
-    newPitch += (deltaGamma * Math.PI / 180 * sensitivity);
+    newYaw = params.yaw + (deltaBeta * Math.PI / 180 * sensitivity);
+    newPitch = params.pitch + (deltaGamma * Math.PI / 180 * sensitivity);
   } else {
-    // 横持ち（右）
-    newYaw -= (deltaBeta * Math.PI / 180 * sensitivity);
-    newPitch -= (deltaGamma * Math.PI / 180 * sensitivity);
+    newYaw = params.yaw - (deltaBeta * Math.PI / 180 * sensitivity);
+    newPitch = params.pitch - (deltaGamma * Math.PI / 180 * sensitivity);
   }
   
   var maxPitch = 75 * Math.PI / 180;
@@ -551,9 +553,27 @@ function handleDeviceOrientation(event) {
 }
 
 function startIdleTimer() {
-  // アイドルタイマー撤廃：即座にジャイロ有効化
-  gyroActive = true;
-  lastOrientation = { alpha: null, beta: null, gamma: null };
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(function() {
+    gyroActive = true;
+    lastOrientation = { alpha: null, beta: null, gamma: null };
+  }, IDLE_TIME);
+}
+
+function stopIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+  gyroActive = false;
+}
+
+function deactivateGyroTemporarily() {
+  stopIdleTimer();
+  if (touchDeactivateTimer) clearTimeout(touchDeactivateTimer);
+  touchDeactivateTimer = setTimeout(function() {
+    startIdleTimer();
+  }, TOUCH_DEACTIVATE_TIME);
 }
 
 function initGyro() {
@@ -564,17 +584,14 @@ function initGyro() {
 }
 
 panoElement.addEventListener('touchstart', function() {
-  // タッチ中はジャイロ一時停止したい場合はここを有効化
-  // gyroActive = false; 
-});
-panoElement.addEventListener('touchend', function() {
-  // タッチ終了後即復帰
-  lastOrientation = { alpha: null, beta: null, gamma: null };
-  gyroActive = true; 
+  deactivateGyroTemporarily();
 });
 
+panoElement.addEventListener('touchmove', function() {
+  deactivateGyroTemporarily();
+});
 
-// --- UI 自動フェード ---
+/* UI 自動フェード */
 var uiElements = [
   document.getElementById('mapButton'),
   document.getElementById('counter'),
@@ -586,68 +603,79 @@ var uiElements = [
 ];
 
 var hideTimer = null;
+
 function showUI() {
   uiElements.forEach(function(el) { if (el) el.classList.add('visible'); });
+
   if (hideTimer) clearTimeout(hideTimer);
+
   hideTimer = setTimeout(function() {
     uiElements.forEach(function(el) { if (el) el.classList.remove('visible'); });
   }, 2000);
 }
+
 document.addEventListener('mousemove', showUI);
 document.addEventListener('touchstart', showUI);
 
-
-// --- 長押し移動 ---
+/* 長押し自動移動 */
 var autoMoveInterval = null;
+var autoMoveDelay = 800;
+
 function startAutoMove(moveFunction) {
   if (autoMoveInterval) return;
   moveFunction();
-  autoMoveInterval = setInterval(moveFunction, 800);
+  autoMoveInterval = setInterval(moveFunction, autoMoveDelay);
 }
+
 function stopAutoMove() {
-  if (autoMoveInterval) { clearInterval(autoMoveInterval); autoMoveInterval = null; }
+  if (autoMoveInterval) {
+    clearInterval(autoMoveInterval);
+    autoMoveInterval = null;
+  }
 }
 
-[arrowUp, arrowDown, arrowLeft, arrowRight].forEach(function(arrow) {
-  if (!arrow) return;
-  var moveFunc;
-  if (arrow === arrowUp) moveFunc = window.moveForward;
-  if (arrow === arrowDown) moveFunc = window.moveBackward;
-  if (arrow === arrowLeft) moveFunc = window.moveLeft;
-  if (arrow === arrowRight) moveFunc = window.moveRight;
+var arrowUp = document.getElementById('arrowUp');
+var arrowDown = document.getElementById('arrowDown');
+var arrowLeft = document.getElementById('arrowLeft');
+var arrowRight = document.getElementById('arrowRight');
 
-  arrow.addEventListener('mousedown', function() { startAutoMove(moveFunc); });
-  arrow.addEventListener('mouseup', stopAutoMove);
-  arrow.addEventListener('mouseleave', stopAutoMove);
-  arrow.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(moveFunc); });
-  arrow.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
-});
+arrowUp.addEventListener('mousedown', function() { startAutoMove(window.moveForward); });
+arrowUp.addEventListener('mouseup', stopAutoMove);
+arrowUp.addEventListener('mouseleave', stopAutoMove);
+arrowUp.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveForward); });
+arrowUp.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
 
-// --- 初期ロード実行 ---
-// 修正：data.jsの最初のシーンを強制的に読み込む
-if (scenes && scenes.length > 0) {
-  // URLパラメータがあればそれを優先、なければリストの先頭
-  var targetSceneId = null;
-  
-  // パラメータチェック (scene=1 等)
-  if (startSceneNum) {
-     for(var id in scenesData) {
-       if (scenesData[id].data.position === startSceneNum && scenesData[id].data.direction === 'iki') {
-         targetSceneId = id;
-         break;
-       }
-     }
+arrowDown.addEventListener('mousedown', function() { startAutoMove(window.moveBackward); });
+arrowDown.addEventListener('mouseup', stopAutoMove);
+arrowDown.addEventListener('mouseleave', stopAutoMove);
+arrowDown.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveBackward); });
+arrowDown.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
+
+arrowLeft.addEventListener('mousedown', function() { startAutoMove(window.moveLeft); });
+arrowLeft.addEventListener('mouseup', stopAutoMove);
+arrowLeft.addEventListener('mouseleave', stopAutoMove);
+arrowLeft.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveLeft); });
+arrowLeft.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
+
+arrowRight.addEventListener('mousedown', function() { startAutoMove(window.moveRight); });
+arrowRight.addEventListener('mouseup', stopAutoMove);
+arrowRight.addEventListener('mouseleave', stopAutoMove);
+arrowRight.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveRight); });
+arrowRight.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
+
+/* 初期シーン */
+var initialSceneId = null;
+
+for (var id in scenesData) {
+  if (scenesData[id].data.position === startSceneNum &&
+      scenesData[id].data.direction === 'iki') {
+    initialSceneId = id;
+    break;
   }
-
-  // 見つからなければ強制的にリストの0番目（最初のシーン）を使う
-  if (!targetSceneId) {
-    targetSceneId = scenes[0].id;
-  }
-
-  switchScene(targetSceneId);
-} else {
-  alert("シーンデータが見つかりません。data.jsを確認してください。");
 }
+
+if (initialSceneId) switchScene(initialSceneId);
+else switchScene('0-1');
 
 showUI();
 showPermissionButton();
