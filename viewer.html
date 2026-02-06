@@ -62,18 +62,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 #arrowLeft { top: 45%; right: 15%; transform: translateX(-60px); }
 #arrowRight { top: 45%; right: 15%; transform: translateX(60px); }
 
-/* ジャイロ許可ボタン */
-#gyroPermissionButton {
-  position: absolute; top: 20px; right: 20px;
-  background: rgba(76, 175, 80, 0.9); color: white; padding: 8px 16px; border: none;
-  border-radius: 6px; font-size: 14px; cursor: pointer; z-index: 1000;
-  display: none; transition: opacity 0.5s ease;
-}
-#gyroPermissionButton.fade-out {
-  opacity: 0;
-  pointer-events: none;
-}
-
 /* 文字ホットスポット */
 #textHotspot {
   position: absolute;
@@ -132,7 +120,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 <img id="arrowLeft" class="arrow-nav" src="左-removebg-preview.png" alt="左へ">
 <img id="arrowRight" class="arrow-nav" src="右-removebg-preview.png" alt="右へ">
 
-<button id="gyroPermissionButton">ジャイロON</button>
+<div id="gyroPermissionButton" style="position: absolute; top: 20px; right: 20px; 
+  background: rgba(76, 175, 80, 0.9); color: white; padding: 10px 20px; border-radius: 8px; 
+  font-size: 14px; cursor: pointer; z-index: 1000; display: none; transition: opacity 0.5s ease;">
+  ジャイロON
+</div>
 
 <div id="textHotspot">
   <p id="textContent"></p>
@@ -489,12 +481,9 @@ function showPermissionButton() {
       typeof DeviceOrientationEvent.requestPermission === 'function') {
     permissionButton.style.display = 'block';
     
-    // 5秒後に自動で消える
+    // 3秒後に自動で薄く消える（でもクリックは可能）
     setTimeout(function() {
-      permissionButton.classList.add('fade-out');
-      setTimeout(function() {
-        permissionButton.style.display = 'none';
-      }, 500);
+      permissionButton.style.opacity = '0.3';
     }, 3000);
   } else {
     initGyro();
@@ -509,11 +498,12 @@ permissionButton.addEventListener('click', function() {
         window.addEventListener('deviceorientation', handleDeviceOrientation, true);
         gyroInitialized = true;
         startIdleTimer();
+      } else {
+        alert('ジャイロの許可が必要です');
       }
     })
     .catch(function(error) {
-      console.error('ジャイロ許可エラー:', error);
-      permissionButton.style.display = 'none';
+      alert('エラー: ' + error);
     });
 });
 
