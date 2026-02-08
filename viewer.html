@@ -11,30 +11,6 @@
 html, body { width: 100%; height: 100%; overflow: hidden; }
 #pano { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-/* ▼ ジャイロボタン（右上・丸） ▼ */
-#gyroButton {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 60px;
-  height: 60px;
-  background: rgba(255,255,255,0.85);
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-weight: bold;
-  color: #333;
-  z-index: 200;
-  opacity: 0;
-  transition: opacity 1s ease;
-  cursor: pointer;
-  user-select: none;
-}
-#gyroButton.visible {
-  opacity: 0.8;
-}
-
 /* UI ボタン類 */
 #mapButton {
   position: absolute; bottom: 30px; left: 20px; width: 70px; height: 70px;
@@ -138,9 +114,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 
 <div id="pano"></div>
 
-<!-- ▼ ジャイロONボタン（右上・普段は透明） ▼ -->
-<div id="gyroButton">GYRO</div>
-
 <img id="mapButton" src="Map戻り-removebg-preview.png" alt="Map" onclick="goToMap()">
 <div id="counter">1</div>
 
@@ -167,6 +140,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 (function() {
 'use strict';
 
+/* ------------------------------
+   ここから JS 本体（前半）
+------------------------------ */
+
 var SWITCH_THRESHOLD = 91;
 var Marzipano = window.Marzipano;
 var data = window.APP_DATA;
@@ -179,7 +156,7 @@ var currentScene = null;
 var currentView = null;
 var currentSceneObj = null;
 
-/* Audio */
+/* ▼▼▼ iOS 対応：AudioContext ▼▼▼ */
 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 var currentAudio = null;
 var currentVolume = 0.5;
@@ -274,7 +251,9 @@ scenes.forEach(function(sceneData) {
   };
 });
 
-/* 文字ホットスポット表示 */
+/* ------------------------------
+   文字ホットスポット表示
+------------------------------ */
 function showTextHotspot(sceneId) {
   var sceneObj = scenesData[sceneId];
   if (!sceneObj) return;
@@ -311,7 +290,9 @@ function hideTextHotspot() {
   textHotspotElement.classList.remove('visible');
 }
 
-/* シーン切り替え */
+/* ------------------------------
+   シーン切り替え
+------------------------------ */
 function switchScene(sceneId, newYaw, newPitch) {
   var sceneObj = scenesData[sceneId];
   if (!sceneObj) return;
@@ -337,7 +318,9 @@ function switchScene(sceneId, newYaw, newPitch) {
   showTextHotspot(sceneId);
 }
 
-/* 角度計算 */
+/* ------------------------------
+   角度計算
+------------------------------ */
 function normalizeAngle(angle) {
   while (angle > Math.PI) angle -= 2 * Math.PI;
   while (angle < -Math.PI) angle += 2 * Math.PI;
@@ -346,7 +329,9 @@ function normalizeAngle(angle) {
 function degToRad(deg) { return deg * Math.PI / 180; }
 function radToDeg(rad) { return rad * 180 / Math.PI; }
 
-/* 矢印表示制御 */
+/* ------------------------------
+   矢印表示制御
+------------------------------ */
 function updateArrowVisibility() {
   if (!currentView || !currentSceneObj) return;
 
@@ -371,7 +356,9 @@ function updateArrowVisibility() {
   }
 }
 
-/* 自動シーン切替（往復） */
+/* ------------------------------
+   自動シーン切替（往復）
+------------------------------ */
 setInterval(function() {
   if (!currentView || !currentSceneObj) return;
 
@@ -389,14 +376,18 @@ setInterval(function() {
   }
 }, 100);
 
-/* 音量スライダー */
+/* ------------------------------
+   音量スライダー
+------------------------------ */
 var volumeSlider = document.getElementById('volumeSlider');
 volumeSlider.addEventListener('input', function() {
   currentVolume = this.value;
   if (currentAudio) currentAudio.volume = currentVolume;
 });
 
-/* 効果音再生 */
+/* ------------------------------
+   効果音再生
+------------------------------ */
 function playPositionSound(position) {
   if (!audioEnabled) return;
   if (playedPositions[position]) return;
@@ -422,7 +413,9 @@ function playPositionSound(position) {
   playedPositions[position] = true;
 }
 
-/* 初回タップで音声許可 */
+/* ------------------------------
+   初回タップで音声許可
+------------------------------ */
 function tryEnableAudio() {
   audioEnabled = true;
   if (audioCtx.state === "suspended") {
@@ -432,7 +425,9 @@ function tryEnableAudio() {
 document.addEventListener('click', tryEnableAudio, { once: true });
 document.addEventListener('touchstart', tryEnableAudio, { once: true });
 
-/* 地図へ戻る */
+/* ------------------------------
+   地図へ戻る
+------------------------------ */
 window.goToMap = function() {
   if (currentAudio) currentAudio.pause();
   visitedScenes = {};
@@ -440,7 +435,12 @@ window.goToMap = function() {
   window.location.href = "index.html";
 };
 
-/* 移動処理（確定修正版：180度逆転対策） */
+/* ------------------------------
+   移動処理
+------------------------------ */
+/* ------------------------------
+   移動処理（確定修正版：180度逆転対策）
+------------------------------ */
 function executeMoveByDelta(delta) {
   if (!currentView || !currentSceneObj) return;
 
@@ -462,8 +462,10 @@ window.moveForward = function() {
   var delta;
 
   if (currentSceneObj.data.direction === 'iki') {
+    // 行きシーン：正面なら+1（進む）、後ろなら-1（戻る）
     delta = isLookingFront ? 1 : -1;
   } else {
+    // 帰りシーン：正面なら-1（進む）、後ろなら+1（戻る）
     delta = isLookingFront ? -1 : 1;
   }
   executeMoveByDelta(delta);
@@ -475,8 +477,10 @@ window.moveBackward = function() {
   var delta;
 
   if (currentSceneObj.data.direction === 'iki') {
+    // 行きシーン：正面なら-1（下がる）、後ろなら+1（引き返す）
     delta = isLookingFront ? -1 : 1;
   } else {
+    // 帰りシーン：正面なら+1（下がる）、後ろなら-1（引き返す）
     delta = isLookingFront ? 1 : -1;
   }
   executeMoveByDelta(delta);
@@ -484,6 +488,7 @@ window.moveBackward = function() {
 
 window.moveLeft = function() {
   var yaw = normalizeAngle(currentView.parameters().yaw);
+  // 横移動は「景色が流れる方向」に合わせるため、絶対的なdeltaで制御
   if (yaw < 0) {
     executeMoveByDelta(-1);
   } else {
@@ -500,7 +505,9 @@ window.moveRight = function() {
   }
 };
 
-/* UI 自動フェード（軽量化版） */
+/* ------------------------------
+   UI 自動フェード
+------------------------------ */
 var uiElements = [
   document.getElementById('mapButton'),
   document.getElementById('counter'),
@@ -523,10 +530,12 @@ function showUI() {
   }, 2000);
 }
 
-/* ★ ここが今回の“軽量化の核心”：pointerdown だけに統一 ★ */
-document.addEventListener('pointerdown', showUI);
+document.addEventListener('mousemove', showUI);
+document.addEventListener('touchstart', showUI);
 
-/* 長押し自動移動 */
+/* ------------------------------
+   長押し自動移動
+------------------------------ */
 var autoMoveInterval = null;
 var autoMoveDelay = 800;
 
@@ -572,7 +581,9 @@ arrowRight.addEventListener('mouseleave', stopAutoMove);
 arrowRight.addEventListener('touchstart', function(e) { e.preventDefault(); startAutoMove(window.moveRight); });
 arrowRight.addEventListener('touchend', function(e) { e.preventDefault(); stopAutoMove(); });
 
-/* 初期シーン */
+/* ------------------------------
+   初期シーン
+------------------------------ */
 var initialSceneId = null;
 
 for (var id in scenesData) {
@@ -587,47 +598,6 @@ if (initialSceneId) switchScene(initialSceneId);
 else switchScene('0-1');
 
 showUI();
-
-/* ▼▼▼ ジャイロボタン制御 ▼▼▼ */
-var gyroButton = document.getElementById("gyroButton");
-var gyroHideTimer = null;
-
-function enableGyro() {
-  if (typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function") {
-
-    DeviceOrientationEvent.requestPermission()
-      .then(function(response) {
-        if (response === "granted") {
-          viewer.controls().enableMethod('deviceOrientation');
-        } else {
-          alert("ジャイロが許可されませんでした。");
-        }
-      })
-      .catch(console.error);
-
-  } else {
-    viewer.controls().enableMethod('deviceOrientation');
-  }
-}
-
-function showGyroButton() {
-  gyroButton.classList.add("visible");
-
-  if (gyroHideTimer) clearTimeout(gyroHideTimer);
-  gyroHideTimer = setTimeout(function() {
-    gyroButton.classList.remove("visible");
-  }, 5000);
-}
-
-gyroButton.addEventListener("click", function() {
-  gyroButton.classList.remove("visible");
-  enableGyro();
-});
-
-/* 初回のユーザー操作で一度だけ表示 */
-document.addEventListener("touchstart", showGyroButton, { once: true });
-document.addEventListener("click", showGyroButton, { once: true });
 
 })();
 </script>
