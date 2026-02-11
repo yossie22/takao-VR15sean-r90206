@@ -91,6 +91,41 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
     -2px -2px 4px black;
 }
 
+/* 角度表示 */
+#angleDisplay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #0066ff;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #0066ff;
+  z-index: 100;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  user-select: none;
+}
+#angleDisplay.visible { opacity: 0.8; }
+#angleDisplay.locked { opacity: 1; }
+
+#angleYaw {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+#anglePitch {
+  font-size: 10px;
+  color: #666;
+}
+
 /* スマホ調整 */
 @media (max-width: 768px) {
   #textHotspot {
@@ -105,6 +140,13 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
       -2px 2px 4px black,
       2px -2px 4px black,
       -2px -2px 4px black;
+  }
+  
+  #angleDisplay {
+    top: 10px;
+    right: 10px;
+    width: 55px;
+    height: 55px;
   }
 }
 </style>
@@ -129,6 +171,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 
 <div id="textHotspot">
   <p id="textContent"></p>
+</div>
+
+<!-- 角度表示 -->
+<div id="angleDisplay">
+  <div id="angleYaw">0°</div>
+  <div id="anglePitch">0°</div>
 </div>
 
 <script src="vendor/screenfull.min.js"></script>
@@ -167,6 +215,14 @@ var playedPositions = {};
 var visitedScenes = {};
 var textHotspotElement = document.getElementById('textHotspot');
 var textContentElement = document.getElementById('textContent');
+
+/* 角度表示 */
+var angleDisplay = document.getElementById('angleDisplay');
+var angleYaw = document.getElementById('angleYaw');
+var anglePitch = document.getElementById('anglePitch');
+var angleHideTimer = null;
+var angleLocked = false;
+var angleLongPressTimer = null;
 
 /* URL パラメータ */
 var urlParams = new URLSearchParams(window.location.search);
@@ -282,7 +338,13 @@ function showTextHotspot(sceneId) {
       textHotspotElement.classList.add('visible');
     }, 500);
 
+    setTimeout(function() {
+      hideTextHotspot();
+    }, 7000);
+
     visitedScenes[sceneId] = true;
+  } else {
+    hideTextHotspot();
   }
 }
 
@@ -291,31 +353,33 @@ function hideTextHotspot() {
 }
 
 /* ------------------------------
-   シーン切り替え
+   シーン切替
 ------------------------------ */
-function switchScene(sceneId, newYaw, newPitch) {
-  var sceneObj = scenesData[sceneId];
-  if (!sceneObj) return;
+function switchScene(sceneId, yaw, pitch) {
+  var newSceneObj = scenesData[sceneId];
+  if (!newSceneObj) return;
 
-  hideTextHotspot();
+  currentSceneObj = newSceneObj;
+  currentScene = newSceneObj.scene;
+  currentView = newSceneObj.view;
 
-  var targetView = sceneObj.view;
-  if (typeof newYaw !== 'undefined' && typeof newPitch !== 'undefined') {
-    targetView.setParameters({ yaw: newYaw, pitch: newPitch });
+  currentScene.switchTo({
+    transitionDuration: 500
+  });
+
+  if (typeof yaw !== 'undefined' && typeof pitch !== 'undefined') {
+    currentView.setParameters({ yaw: yaw, pitch: pitch });
   }
 
-  sceneObj.scene.switchTo({ transitionDuration: 500 });
-  currentScene = sceneObj.scene;
-  currentView = targetView;
-  currentSceneObj = sceneObj;
+  var counter = document.getElementById('counter');
+  counter.textContent = currentSceneObj.data.position;
 
-  document.getElementById('counter').textContent = sceneObj.data.position;
-
-  if (sceneObj.data.direction === 'iki') {
-    playPositionSound(sceneObj.data.position);
+  if (currentSceneObj.data.direction === 'iki') {
+    playPositionSound(currentSceneObj.data.position);
   }
 
   showTextHotspot(sceneId);
+  updateArrowVisibility();
 }
 
 /* ------------------------------
@@ -328,6 +392,96 @@ function normalizeAngle(angle) {
 }
 function degToRad(deg) { return deg * Math.PI / 180; }
 function radToDeg(rad) { return rad * 180 / Math.PI; }
+
+/* ------------------------------
+   角度表示の更新
+------------------------------ */
+function updateAngleDisplay() {
+  if (!currentView) return;
+  
+  var params = currentView.parameters();
+  var yawDeg = Math.round(radToDeg(normalizeAngle(params.yaw)));
+  var pitchDeg = Math.round(radToDeg(params.pitch));
+  
+  angleYaw.textContent = yawDeg + '°';
+  anglePitch.textContent = pitchDeg + '°';
+}
+
+/* ------------------------------
+   角度表示の表示制御
+------------------------------ */
+function showAngleDisplay() {
+  if (angleLocked) return; // ロック中は何もしない
+  
+  angleDisplay.classList.add('visible');
+  
+  // 既存のタイマーをクリア
+  if (angleHideTimer) {
+    clearTimeout(angleHideTimer);
+  }
+  
+  // 2秒後に非表示
+  angleHideTimer = setTimeout(function() {
+    if (!angleLocked) {
+      angleDisplay.classList.remove('visible');
+    }
+  }, 2000);
+}
+
+/* ------------------------------
+   角度表示の長押し処理
+------------------------------ */
+function startAngleLongPress() {
+  angleLongPressTimer = setTimeout(function() {
+    angleLocked = true;
+    angleDisplay.classList.add('locked');
+    if (angleHideTimer) {
+      clearTimeout(angleHideTimer);
+      angleHideTimer = null;
+    }
+  }, 500); // 0.5秒長押しでロック
+}
+
+function cancelAngleLongPress() {
+  if (angleLongPressTimer) {
+    clearTimeout(angleLongPressTimer);
+    angleLongPressTimer = null;
+  }
+}
+
+// 角度表示のイベントリスナー
+angleDisplay.addEventListener('mousedown', function(e) {
+  e.preventDefault();
+  startAngleLongPress();
+});
+
+angleDisplay.addEventListener('mouseup', function(e) {
+  e.preventDefault();
+  cancelAngleLongPress();
+});
+
+angleDisplay.addEventListener('mouseleave', function(e) {
+  cancelAngleLongPress();
+});
+
+angleDisplay.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  startAngleLongPress();
+});
+
+angleDisplay.addEventListener('touchend', function(e) {
+  e.preventDefault();
+  cancelAngleLongPress();
+});
+
+// 角度表示をタップでロック解除
+angleDisplay.addEventListener('click', function(e) {
+  if (angleLocked) {
+    angleLocked = false;
+    angleDisplay.classList.remove('locked');
+    showAngleDisplay(); // 再度2秒タイマー開始
+  }
+});
 
 /* ------------------------------
    矢印表示制御
@@ -357,7 +511,7 @@ function updateArrowVisibility() {
 }
 
 /* ------------------------------
-   自動シーン切替（往復）
+   自動シーン切替（往復）+ 角度更新
 ------------------------------ */
 setInterval(function() {
   if (!currentView || !currentSceneObj) return;
@@ -366,6 +520,7 @@ setInterval(function() {
   var currentYaw = normalizeAngle(params.yaw);
 
   updateArrowVisibility();
+  updateAngleDisplay(); // 角度表示を更新
 
   if (currentYaw > degToRad(SWITCH_THRESHOLD) || currentYaw < -degToRad(SWITCH_THRESHOLD)) {
     var pairSceneId = currentSceneObj.data.pair;
@@ -530,8 +685,16 @@ function showUI() {
   }, 2000);
 }
 
-document.addEventListener('mousemove', showUI);
-document.addEventListener('touchstart', showUI);
+// 画面操作時に角度表示も表示
+document.addEventListener('mousemove', function() {
+  showUI();
+  showAngleDisplay();
+});
+
+document.addEventListener('touchstart', function() {
+  showUI();
+  showAngleDisplay();
+});
 
 /* ------------------------------
    長押し自動移動
@@ -598,6 +761,7 @@ if (initialSceneId) switchScene(initialSceneId);
 else switchScene('0-1');
 
 showUI();
+showAngleDisplay(); // 初期表示
 
 })();
 </script>
