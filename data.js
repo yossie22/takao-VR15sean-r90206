@@ -36,7 +36,11 @@ var APP_DATA = {
           "target": "0-1"
         }
       ],
-      "infoHotspots": []
+      "infoHotspots": [
+        {
+          "text": "高尾山での撮影で立ち上げテスト用の編集です。"
+        }
+      ]
     },
     {
       "id": "1-2",
