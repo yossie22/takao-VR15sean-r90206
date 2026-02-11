@@ -36,11 +36,7 @@ var APP_DATA = {
           "target": "0-1"
         }
       ],
-      "infoHotspots": [
-        {
-          "text": "高尾山-西展望台周辺の散歩 を兼ねてテスト撮影です！"
-        }
-      ]
+      "infoHotspots": []
     },
     {
       "id": "1-2",
@@ -570,6 +566,234 @@ var APP_DATA = {
           "pitch": 0,
           "rotation": 0,
           "target": "14-15"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "15-16",
+      "name": "16",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "15-16"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "16-17",
+      "name": "17",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "16-17"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "17-18",
+      "name": "18",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "17-18"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "18-19",
+      "name": "19",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "18-19"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "19-20",
+      "name": "20",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "19-20"
+        }
+      ],
+      "infoHotspots": []
+    },
+    {
+      "id": "20-21",
+      "name": "21",
+      "levels": [
+        {
+          "tileSize": 256,
+          "size": 256,
+          "fallbackOnly": true
+        },
+        {
+          "tileSize": 512,
+          "size": 512
+        },
+        {
+          "tileSize": 512,
+          "size": 1024
+        },
+        {
+          "tileSize": 512,
+          "size": 2048
+        }
+      ],
+      "faceSize": 1440,
+      "initialViewParameters": {
+        "yaw": 0,
+        "pitch": 0,
+        "fov": 1.2721933609937348
+      },
+      "linkHotspots": [
+        {
+          "yaw": 0,
+          "pitch": 0,
+          "rotation": 0,
+          "target": "20-21"
         }
       ],
       "infoHotspots": []
