@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<title>VR洞窟ツアー - 地図選択</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body, html { width: 100%; height: 100%; overflow: hidden; background: #222; }
+.map-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: #222; }
+.map-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.map-pin { position: absolute; transform: translate(-50%, -100%); cursor: pointer; z-index: 10; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; -webkit-tap-highlight-color: transparent; }
+.map-pin:hover, .map-pin:active { transform: translate(-50%, -100%) scale(1.15); }
+.pin-icon { width: 36px; height: 36px; background: #e8453c; border: 3px solid white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 3px 8px rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
+.pin-number { transform: rotate(45deg); font-size: 14px; font-weight: bold; color: white; line-height: 1; }
+.pin-shadow { width: 10px; height: 5px; background: rgba(0,0,0,0.25); border-radius: 50%; margin-top: 2px; }
+.pin-label { background: rgba(255,255,255,0.95); color: #333; font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 4px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.4); margin-bottom: 4px; pointer-events: none; font-family: sans-serif; }
+</style>
+</head>
+<body>
+<div class="map-container">
+  <img src="map.jpg" alt="地図" class="map-image">
+</div>
+<script>
+var MAP_BOUNDS = {
+  topLeft:     { lat: 33.209566, lng: 131.651788 },
+  bottomRight: { lat: 33.208481, lng: 131.654014 }
+};
+var PINS = [
+  { lat: 33.208649, lng: 131.653162, name: 'スタート', scene: 1 },
+  { lat: 33.208792, lng: 131.65304, name: '終点', scene: 21 }
+];
+function goToScene(n) { window.location.href = 'viewer.html?scene=' + n; }
+function gpsToPercent(lat, lng) {
+  var x = (lng - MAP_BOUNDS.topLeft.lng) / (MAP_BOUNDS.bottomRight.lng - MAP_BOUNDS.topLeft.lng) * 100;
+  var y = (MAP_BOUNDS.topLeft.lat - lat) / (MAP_BOUNDS.topLeft.lat - MAP_BOUNDS.bottomRight.lat) * 100;
+  return { x: x, y: y };
+}
+var container = document.querySelector('.map-container');
+PINS.forEach(function(pin, i) {
+  var pos = gpsToPercent(pin.lat, pin.lng);
+  var el = document.createElement('div');
+  el.className = 'map-pin';
+  el.style.left = pos.x + '%';
+  el.style.top  = pos.y + '%';
+  el.innerHTML = '<div class="pin-label">' + pin.name + '</div>' +
+    '<div class="pin-icon"><span class="pin-number">' + (i+1) + '</span></div>' +
+    '<div class="pin-shadow"></div>';
+  el.addEventListener('click', function() { goToScene(pin.scene); });
+  container.appendChild(el);
+});
+</script>
+</body>
+</html>
