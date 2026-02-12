@@ -351,38 +351,6 @@ var compassRose = document.getElementById('compassRose');
 var debugMode = false;
 var counterLastTapTime = 0;
 
-/* コンパス：デバイス検出 */
-var deviceHeading = null;     // スマホ磁気センサー値
-var hasDeviceOrientation = false;
-var sceneHeadingData = {};    // data.jsのheading情報を格納
-
-// スマホ磁気センサー対応
-if (window.DeviceOrientationEvent) {
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS 13+
-    document.addEventListener('click', function() {
-      DeviceOrientationEvent.requestPermission().then(function(state) {
-        if (state === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          hasDeviceOrientation = true;
-        }
-      }).catch(function(){});
-    }, { once: true });
-  } else {
-    // Android
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    hasDeviceOrientation = true;
-  }
-}
-
-function handleOrientation(e) {
-  if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-    deviceHeading = e.webkitCompassHeading;
-  } else if (e.alpha !== null) {
-    deviceHeading = 360 - e.alpha;
-  }
-}
-
 /* URL パラメータ */
 var urlParams = new URLSearchParams(window.location.search);
 var startSceneParam = urlParams.get('scene');
@@ -568,37 +536,24 @@ function updateAngleDisplay() {
 }
 
 /* ------------------------------
-   コンパスの更新
+   コンパスの更新（全デバイス共通：VR画面のyaw角度に連動）
 ------------------------------ */
 function updateCompass() {
   if (!debugMode || !currentView) return;
   
+  var params = currentView.parameters();
+  var yawDeg = radToDeg(normalizeAngle(params.yaw));
   var rotation = 0;
-  var shouldShow = false;
   
-  // 優先順位1: スマホ磁気センサー
-  if (deviceHeading !== null && hasDeviceOrientation) {
-    rotation = deviceHeading;
-    shouldShow = true;
-  }
-  // 優先順位2: PCでheadingデータあり
-  else if (currentSceneObj && currentSceneObj.data.heading !== undefined) {
-    var params = currentView.parameters();
-    var yawDeg = radToDeg(normalizeAngle(params.yaw));
+  // PCでheadingデータがある場合は、それを基準に補正
+  if (currentSceneObj && currentSceneObj.data.heading !== undefined) {
     rotation = currentSceneObj.data.heading - yawDeg;
-    shouldShow = true;
-  }
-  // 優先順位3: PCでheadingなし → 非表示
-  else {
-    shouldShow = false;
+  } else {
+    // headingデータがない場合は、正面を0度とする
+    rotation = -yawDeg;
   }
   
-  if (shouldShow) {
-    compass.style.display = 'flex';
-    compassRose.style.transform = 'rotate(' + rotation + 'deg)';
-  } else {
-    compass.style.display = 'none';
-  }
+  compassRose.style.transform = 'rotate(' + rotation + 'deg)';
 }
 
 /* ------------------------------
