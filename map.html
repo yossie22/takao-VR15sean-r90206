@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<title>VR洞窟ツアー - 地図選択</title>
+<title>高尾山VR360</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
@@ -27,7 +27,7 @@ var MAP_BOUNDS = {
   bottomRight: { lat: 33.208481, lng: 131.654014 }
 };
 var PINS = [
-  { lat: 33.208649, lng: 131.653162, name: 'スタート', scene: 1 },
+  { lat: 33.208649, lng: 131.653162, name: 'スタート地点', scene: 1, heading: 30 },
   { lat: 33.208792, lng: 131.65304, name: '終点', scene: 21 }
 ];
 function goToScene(n) { window.location.href = 'viewer.html?scene=' + n; }

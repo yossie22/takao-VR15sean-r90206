@@ -351,35 +351,33 @@ var compassRose = document.getElementById('compassRose');
 var debugMode = false;
 var counterLastTapTime = 0;
 
-/* コンパスの向き */
-var deviceHeading = null; // 磁気センサーの値（スマホ）
-var compassSupported = false;
+/* コンパス：デバイス検出 */
+var deviceHeading = null;     // スマホ磁気センサー値
+var hasDeviceOrientation = false;
+var sceneHeadingData = {};    // data.jsのheading情報を格納
 
-// スマホ：磁気センサー
+// スマホ磁気センサー対応
 if (window.DeviceOrientationEvent) {
-  // iOS 13以降はpermission必要
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOSは最初のタップ時にリクエスト
-    document.addEventListener('click', function requestCompass() {
+    // iOS 13+
+    document.addEventListener('click', function() {
       DeviceOrientationEvent.requestPermission().then(function(state) {
         if (state === 'granted') {
           window.addEventListener('deviceorientation', handleOrientation, true);
-          compassSupported = true;
+          hasDeviceOrientation = true;
         }
       }).catch(function(){});
-      document.removeEventListener('click', requestCompass);
     }, { once: true });
   } else {
-    // Android・PC
+    // Android
     window.addEventListener('deviceorientation', handleOrientation, true);
-    compassSupported = true;
+    hasDeviceOrientation = true;
   }
 }
 
 function handleOrientation(e) {
-  // webkitCompassHeading: iOS、alpha: Android
   if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
-    deviceHeading = e.webkitCompassHeading; // 0=北、時計回り
+    deviceHeading = e.webkitCompassHeading;
   } else if (e.alpha !== null) {
     deviceHeading = 360 - e.alpha;
   }
@@ -463,7 +461,8 @@ scenes.forEach(function(sceneData) {
       position: info.position,
       direction: info.direction,
       pair: info.pair,
-      infoHotspots: sceneData.infoHotspots || []
+      infoHotspots: sceneData.infoHotspots || [],
+      heading: sceneData.heading // GPS撮影方向データ（あれば）
     }
   };
 });
@@ -572,21 +571,34 @@ function updateAngleDisplay() {
    コンパスの更新
 ------------------------------ */
 function updateCompass() {
-  if (!debugMode) return;
+  if (!debugMode || !currentView) return;
   
   var rotation = 0;
+  var shouldShow = false;
   
-  if (deviceHeading !== null) {
-    // スマホ：磁気センサー使用
+  // 優先順位1: スマホ磁気センサー
+  if (deviceHeading !== null && hasDeviceOrientation) {
     rotation = deviceHeading;
-  } else if (currentView) {
-    // PC：VR画面のyaw角度をコンパスに反映
+    shouldShow = true;
+  }
+  // 優先順位2: PCでheadingデータあり
+  else if (currentSceneObj && currentSceneObj.data.heading !== undefined) {
     var params = currentView.parameters();
     var yawDeg = radToDeg(normalizeAngle(params.yaw));
-    rotation = -yawDeg; // 右を向けば針が左回り
+    rotation = currentSceneObj.data.heading - yawDeg;
+    shouldShow = true;
+  }
+  // 優先順位3: PCでheadingなし → 非表示
+  else {
+    shouldShow = false;
   }
   
-  compassRose.style.transform = 'rotate(' + rotation + 'deg)';
+  if (shouldShow) {
+    compass.style.display = 'flex';
+    compassRose.style.transform = 'rotate(' + rotation + 'deg)';
+  } else {
+    compass.style.display = 'none';
+  }
 }
 
 /* ------------------------------
