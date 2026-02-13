@@ -541,17 +541,18 @@ function updateAngleDisplay() {
 function updateCompass() {
   if (!debugMode || !currentView) return;
   
+  // headingデータがない場合はコンパスを非表示にする
+  if (!currentSceneObj || currentSceneObj.data.heading === undefined || currentSceneObj.data.heading === null || currentSceneObj.data.heading === '') {
+    compass.classList.remove('active');
+    return;
+  }
+  
+  // headingデータがある場合のみコンパスを表示
+  compass.classList.add('active');
+  
   var params = currentView.parameters();
   var yawDeg = radToDeg(normalizeAngle(params.yaw));
-  var rotation = 0;
-  
-  // PCでheadingデータがある場合は、それを基準に補正
-  if (currentSceneObj && currentSceneObj.data.heading !== undefined) {
-    rotation = currentSceneObj.data.heading - yawDeg;
-  } else {
-    // headingデータがない場合は、正面を0度とする
-    rotation = -yawDeg;
-  }
+  var rotation = currentSceneObj.data.heading - yawDeg;
   
   compassRose.style.transform = 'rotate(' + rotation + 'deg)';
 }
@@ -565,7 +566,10 @@ function toggleDebugMode() {
   if (debugMode) {
     angleDisplay.classList.add('active');
     centerCross.classList.add('active');
-    compass.classList.add('active');
+    // コンパスはheadingデータがある場合のみ表示
+    if (currentSceneObj && currentSceneObj.data.heading !== undefined && currentSceneObj.data.heading !== null && currentSceneObj.data.heading !== '') {
+      compass.classList.add('active');
+    }
   } else {
     angleDisplay.classList.remove('active');
     centerCross.classList.remove('active');
